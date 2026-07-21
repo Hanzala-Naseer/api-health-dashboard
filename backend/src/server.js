@@ -1,48 +1,55 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const app = require('./app');
+const env = require('./config/env');
+const logger = require('./lib/logger');
+const db = require('./lib/db');
 
-const app = express();
+let server;
 
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+async function start() {
+  // Fail fast if the database is unreachable rather than accepting traffic
+  // and erroring on every request.
+  await db.connect();
+  logger.info('✅ Database connected');
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100
-});
-app.use('/api', limiter);
+  server = app.listen(env.PORT, () => {
+    logger.info(`🚀 ${env.APP_NAME} auth service running on port ${env.PORT} [${env.NODE_ENV}]`);
+  });
+}
 
-// Routes placeholder
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'API Health Dashboard Backend' });
+// --- Process-level safety nets ---
+// WHY: an uncaught exception or unhandled rejection left unmanaged can
+// crash the process mid-request (or worse, leave it in a corrupted state
+// that keeps serving requests incorrectly). We log with full context and
+// shut down cleanly so the process manager (PM2/Docker/k8s) restarts us
+// into a known-good state.
+process.on('unhandledRejection', (reason) => {
+  logger.error(`Unhandled Rejection: ${reason?.stack || reason}`);
+  gracefulShutdown(1);
 });
 
-// MongoDB connection
-const connectDB = async () => {
+process.on('uncaughtException', (err) => {
+  logger.error(`Uncaught Exception: ${err.stack || err.message}`);
+  gracefulShutdown(1);
+});
+
+process.on('SIGTERM', () => gracefulShutdown(0));
+process.on('SIGINT', () => gracefulShutdown(0));
+
+async function gracefulShutdown(code) {
+  logger.info('Shutting down gracefully...');
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    process.exit(1);
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    await db.disconnect();
+  } catch (err) {
+    logger.error(`Error during shutdown: ${err.message}`);
+  } finally {
+    process.exit(code);
   }
-};
-connectDB();
+}
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+start().catch((err) => {
+  logger.error(`Failed to start server: ${err.stack || err.message}`);
+  process.exit(1);
 });
