@@ -3,6 +3,7 @@
 
 
 const ApiEndpoint = require('../../models/ApiEndpoint.model.js');
+const mongoose=require("mongoose");
 
 /**
  * WHY a repository layer:
@@ -84,6 +85,42 @@ const endpointRepository = {
   return ApiEndpoint.find({
     monitoringEnabled: true,
   }).lean();
+},
+/**
+ * Counts all endpoints belonging to a user.
+ */
+countAllEndpoints(userId) {
+  return ApiEndpoint.countDocuments({
+    userId,
+  });
+},
+
+/**
+ * Counts endpoints by status for a user.
+ */
+countEndpointsByStatus(userId, status) {
+  return ApiEndpoint.countDocuments({
+    userId,
+    currentStatus: status,
+  });
+},
+
+getAverageUptime(userId) {
+  return ApiEndpoint.aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        averageUptime: {
+          $avg: '$uptimePercentage',
+        },
+      },
+    },
+  ]);
 },
 };
 

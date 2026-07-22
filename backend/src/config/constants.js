@@ -50,9 +50,8 @@ const USER_STATUS = {
 // Mirrors enum USER_ROLES in models/User.model.js
 const USER_ROLES = {
   MEMBER: 'MEMBER',
-  GYM_OWNER: 'GYM_OWNER',
   ADMIN: 'ADMIN',
-  SUPER_ADMIN: 'SUPER_ADMIN',
+  
 };
 
 // Activity log event names written into UserActivityLog.event

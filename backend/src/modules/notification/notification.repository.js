@@ -92,6 +92,36 @@ const notificationRepository = {
 
   },
 
+  async findNotificationHistoryByUser(
+  userId,
+  { skip, limit }
+){
+
+  return Notification.find({
+    userId
+  })
+  .sort({
+    createdAt:-1
+  })
+  .skip(skip)
+  .limit(limit)
+  .populate(
+    'alertId',
+    'title type severity status'
+  )
+  .lean();
+
+},
+
+
+async countNotificationHistoryByUser(userId){
+
+  return Notification.countDocuments({
+    userId
+  });
+
+},  
+
 
 };
 

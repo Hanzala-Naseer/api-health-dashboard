@@ -45,7 +45,74 @@ const alertRepository = {
 
     );
 
-  }
+  },
+  countActiveAlerts(userId) {
+  return Alert.countDocuments({
+    userId,
+    status: 'ACTIVE',
+  });
+},
+
+async findActiveAlertsByUser(
+  userId,
+  { skip, limit }
+){
+
+  return Alert.find({
+    userId,
+    status:'ACTIVE'
+  })
+  .sort({
+    createdAt:-1
+  })
+  .skip(skip)
+  .limit(limit)
+  .populate(
+    'endpointId',
+    'name url method currentStatus'
+  )
+  .lean();
+
+},
+
+async countActiveAlertsByUser(userId){
+
+  return Alert.countDocuments({
+    userId,
+    status:'ACTIVE'
+  });
+
+},
+
+async findAlertHistoryByUser(
+  userId,
+  { skip, limit }
+){
+
+  return Alert.find({
+    userId,
+  })
+  .sort({
+    createdAt:-1
+  })
+  .skip(skip)
+  .limit(limit)
+  .populate(
+    'endpointId',
+    'name url method'
+  )
+  .lean();
+
+},
+
+
+async countAlertHistoryByUser(userId){
+
+  return Alert.countDocuments({
+    userId,
+  });
+
+},
 
 
 };
