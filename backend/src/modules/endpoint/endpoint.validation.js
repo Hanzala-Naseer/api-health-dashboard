@@ -75,7 +75,38 @@ const createEndpointSchema = z
   .strict();
 
 
+  const getEndpointSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid endpoint id'),
+});
+
+const updateEndpointSchema = z
+  .object({
+    name: z.string().trim().min(1).max(150).optional(),
+
+    url: z.string().trim().url().optional(),
+
+    method: z
+      .enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
+      .optional(),
+
+    expectedStatus: z.number().int().min(100).max(599).optional(),
+
+    description: z.string().trim().max(1000).nullable().optional(),
+
+    frequency: z.number().int().min(10).optional(),
+
+    timeout: z.number().int().min(100).optional(),
+
+    monitoringEnabled: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required.',
+  });
+
+
 module.exports = {
   createEndpointSchema,
-  getEndpointsSchema
+  getEndpointsSchema,
+  getEndpointSchema,
+  updateEndpointSchema
 };

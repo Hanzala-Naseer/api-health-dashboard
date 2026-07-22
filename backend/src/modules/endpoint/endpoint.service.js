@@ -156,7 +156,78 @@ async function getEndpoints(userId, query) {
   };
 }
 
+async function getEndpoint(userId, endpointId) {
+  const endpoint = await endpointRepository.findByIdAndUser(endpointId, userId);
+
+  if (!endpoint) {
+    throw ApiError.notFound(
+      'Endpoint not found.',
+      'ENDPOINT_NOT_FOUND'
+    );
+  }
+
+  return endpoint;
+}
+
+
+async function updateEndpoint(userId, endpointId, payload) {
+  const endpoint = await endpointRepository.findByIdAndUser(
+    endpointId,
+    userId
+  );
+
+  if (!endpoint) {
+    throw ApiError.notFound(
+      'Endpoint not found.',
+      'ENDPOINT_NOT_FOUND'
+    );
+  }
+
+  // Normalize URL if it is being updated
+  if (payload.url) {
+    payload.url = normalizeUrl(payload.url);
+
+    const duplicate = await endpointRepository.findByUserAndUrl(
+      userId,
+      payload.url
+    );
+
+    if (duplicate && duplicate.id !== endpoint.id) {
+      throw ApiError.conflict(
+        'You are already monitoring this URL.',
+        'ENDPOINT_ALREADY_EXISTS'
+      );
+    }
+  }
+
+  const updatedEndpoint = await endpointRepository.updateEndpoint(
+    endpointId,
+    payload
+  );
+
+  return toEndpointResponse(updatedEndpoint);
+}
+
+
+async function deleteEndpoint(userId, endpointId) {
+  const endpoint = await endpointRepository.findByIdAndUser(
+    endpointId,
+    userId
+  );
+
+  if (!endpoint) {
+    throw ApiError.notFound(
+      'Endpoint not found.',
+      'ENDPOINT_NOT_FOUND'
+    );
+  }
+
+  await endpointRepository.deleteEndpoint(endpointId);
+}
 module.exports = {
   createEndpoint,
-  getEndpoints
+  getEndpoints,
+  getEndpoint,
+  updateEndpoint,
+  deleteEndpoint
 };

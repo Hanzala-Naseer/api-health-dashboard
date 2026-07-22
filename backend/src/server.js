@@ -3,6 +3,10 @@ const env = require('./config/env');
 const logger = require('./lib/logger');
 const db = require('./lib/db');
 
+const {
+  startScheduler,
+} = require('./modules/scheduler/scheduler.service');
+
 let server;
 
 async function start() {
@@ -13,6 +17,7 @@ async function start() {
 
   server = app.listen(env.PORT, () => {
     logger.info(`🚀 ${env.APP_NAME} auth service running on port ${env.PORT} [${env.NODE_ENV}]`);
+    startScheduler();
   });
 }
 

@@ -37,7 +37,51 @@ const getEndpoints = asyncHandler(async (req, res) => {
   ).send(res);
 });
 
+const getEndpoint = asyncHandler(async (req, res) => {
+  const endpoint = await endpointService.getEndpoint(
+    req.user.id,
+    req.params.id
+  );
+
+  return new ApiResponse(
+    200,
+    'Endpoint retrieved successfully.',
+    { endpoint }
+  ).send(res);
+});
+
+const updateEndpoint = asyncHandler(async (req, res) => {
+  const endpoint = await endpointService.updateEndpoint(
+    req.user.id,
+    req.params.id,
+    req.body
+  );
+
+  return new ApiResponse(
+    200,
+    'Endpoint updated successfully.',
+    { endpoint }
+  ).send(res);
+});
+
+
+const deleteEndpoint = asyncHandler(async (req, res) => {
+  await endpointService.deleteEndpoint(
+    req.user.id,
+    req.params.id
+  );
+
+  return new ApiResponse(
+    200,
+    'Endpoint deleted successfully.'
+  ).send(res);
+});
+
 module.exports = {
   createEndpoint,
-  getEndpoints
+  getEndpoints,
+  getEndpoint,
+  updateEndpoint,
+  deleteEndpoint,
+  
 };

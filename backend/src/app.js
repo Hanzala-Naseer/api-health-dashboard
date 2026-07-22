@@ -11,6 +11,7 @@ const { notFoundHandler, errorHandler } = require('./middlewares/error.middlewar
 
 const authRoutes = require('./modules/auth/auth.routes');
 const endpointRoutes=require("./modules/endpoint/endpoint.routes");
+const monitoringRoutes=require("./modules/monitoring/monitoring.routes");
 
 const ApiResponse = require('./utils/ApiResponse');
 
@@ -61,6 +62,7 @@ app.get('/health', (req, res) => {
 // --- Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/endpoints', endpointRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 
 // --- 404 + centralized error handler (must be last) ---
 app.use(notFoundHandler);

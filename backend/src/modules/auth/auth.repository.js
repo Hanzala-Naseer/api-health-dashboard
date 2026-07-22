@@ -382,6 +382,17 @@ const authRepository = {
     if (rows.length === 0) return { acknowledged: true, deletedCount: 0 };
     return PasswordHistory.deleteMany({ _id: { $in: rows.map((r) => r._id) } });
   },
+
+  findById(id) {
+  return ApiEndpoint.findById(id);
+},
+
+updateEndpoint(id, data) {
+  return ApiEndpoint.findByIdAndUpdate(id, data, {
+    new: true,
+    runValidators: true,
+  });
+},
 };
 
 module.exports = authRepository;
