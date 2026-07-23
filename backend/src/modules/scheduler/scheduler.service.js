@@ -123,8 +123,25 @@ console.log("===============================\n");
        * Step 2:
        * Filter due endpoints
        */
-      const dueEndpoints =
-        endpoints.filter(shouldRunEndpoint);
+      const dueEndpoints = endpoints.filter((endpoint) => {
+
+  const due = shouldRunEndpoint(endpoint);
+
+  const secondsSinceLastCheck = endpoint.lastCheckedAt
+    ? Math.floor(
+        (Date.now() - new Date(endpoint.lastCheckedAt).getTime()) / 1000
+      )
+    : "Never";
+
+  console.log("\n------------------------");
+  console.log("Endpoint:", endpoint.name);
+  console.log("Frequency:", endpoint.frequency, "seconds");
+  console.log("Last Checked:", endpoint.lastCheckedAt);
+  console.log("Seconds Since Last Check:", secondsSinceLastCheck);
+  console.log("Due:", due);
+
+  return due;
+});
 
 
 

@@ -14,7 +14,7 @@ const { z } = require('zod');
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(5000),
-  APP_NAME: z.string().default('GymKey'),
+  APP_NAME: z.string().default('PulseOps'),
   CLIENT_URL: z.string().url(),
   API_BASE_URL: z.string().url(),
 
@@ -25,8 +25,8 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   JWT_REFRESH_EXPIRES_IN_REMEMBER_ME: z.string().default('30d'),
-  JWT_ISSUER: z.string().default('gymkey-api'),
-  JWT_AUDIENCE: z.string().default('gymkey-client'),
+  JWT_ISSUER: z.string().default('pulseOps-api'),
+  JWT_AUDIENCE: z.string().default('pulseOps-client'),
 
   COOKIE_DOMAIN: z.string().default('localhost'),
   COOKIE_SECURE: z.coerce.boolean().default(false),
@@ -60,8 +60,8 @@ const envSchema = z.object({
   .transform((val) => val.toLowerCase() === "true"),
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
-  EMAIL_FROM_NAME: z.string().default('GymKey'),
-  EMAIL_FROM_ADDRESS: z.string().default('no-reply@gymkey.app'),
+  EMAIL_FROM_NAME: z.string().default('PulseOps'),
+  EMAIL_FROM_ADDRESS: z.string().default('no-reply@pulseops.app'),
 
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),

@@ -95,8 +95,8 @@ async function register({ email, password, firstName, lastName, phoneNumber }, r
     id: user.id,
     email: user.email,
     status: user.status,
-    firstName: user.profile?.firstName,
-    lastName: user.profile?.lastName,
+    firstName: user.firstName,
+    lastName: user.lastName,
   };
 }
 
@@ -138,7 +138,7 @@ async function issueAndSendOtp(user, purpose, requestContext, { activityEvent } 
   });
 
   const template = otpEmail({
-    firstName: user.profile?.firstName,
+    firstName: user.firstName,
     otp: rawOtp,
     purposeLabel: purpose === OTP_PURPOSE.REGISTRATION ? 'verify your email' : 'continue',
     expiryMinutes: env.OTP_EXPIRY_MINUTES,
@@ -235,7 +235,8 @@ async function verifyOtp({ email, otp, purpose }, requestContext) {
   if (purpose === OTP_PURPOSE.REGISTRATION) {
     updatedUser = await authRepository.markEmailVerified(user.id);
 
-    const welcome = welcomeEmail({ firstName: user.profile?.firstName });
+    const welcome = welcomeEmail({ firstName: user.
+firstName });
     await sendEmail({ to: user.email, subject: welcome.subject, html: welcome.html, text: welcome.text });
   }
 
@@ -419,7 +420,8 @@ async function login({ email, password, rememberMe }, requestContext) {
       });
 
       const lockedEmailTemplate = accountLockedEmail({
-        firstName: user.profile?.firstName,
+        firstName: user.
+  firstName,
         lockDurationMinutes: env.ACCOUNT_LOCK_DURATION_MINUTES,
         ipAddress: requestContext.ipAddress,
       });
@@ -511,7 +513,8 @@ async function login({ email, password, rememberMe }, requestContext) {
     });
 
     const newDeviceTemplate = newDeviceLoginEmail({
-      firstName: user.profile?.firstName,
+      firstName: user.
+firstName,
       deviceName: requestContext.deviceName,
       browserName: requestContext.browserName,
       osName: requestContext.osName,
@@ -534,8 +537,9 @@ async function login({ email, password, rememberMe }, requestContext) {
       email: user.email,
       role: user.role,
       status: user.status,
-      firstName: user.profile?.firstName,
-      lastName: user.profile?.lastName,
+      firstName: user.
+firstName,
+      lastName: user.lastName,
     },
     accessToken,
     accessExpiresAt,
@@ -604,7 +608,8 @@ async function refreshAccessToken(rawRefreshToken, requestContext) {
     const compromisedUser = await authRepository.findUserWithProfileById(existingToken.userId);
     if (compromisedUser) {
       const alertTemplate = suspiciousTokenReuseEmail({
-        firstName: compromisedUser.profile?.firstName,
+        firstName: compromisedUser.
+  firstName,
         ipAddress: requestContext.ipAddress,
       });
       await sendEmail({
@@ -831,7 +836,7 @@ async function forgotPassword({ email }, requestContext) {
 
   await authRepository.createPasswordResetToken({ userId: user.id, tokenHash, expiresAt });
 
-  const template = passwordResetEmail({ firstName: user.profile?.firstName, rawToken });
+  const template = passwordResetEmail({ firstName: user.firstName, rawToken });
   await sendEmail({ to: user.email, subject: template.subject, html: template.html, text: template.text });
 
   await authRepository.logActivity({
@@ -891,7 +896,7 @@ async function resetPassword({ token, newPassword }, requestContext) {
   });
 
   const confirmationTemplate = passwordChangedEmail({
-    firstName: user.profile?.firstName,
+    firstName: user.firstName,
     ipAddress: requestContext.ipAddress,
   });
   await sendEmail({
@@ -955,7 +960,7 @@ async function changePassword({ userId, currentSessionId, currentPassword, newPa
   });
 
   const confirmationTemplate = passwordChangedEmail({
-    firstName: user.profile?.firstName,
+    firstName: user.firstName,
     ipAddress: requestContext.ipAddress,
   });
   await sendEmail({

@@ -11,8 +11,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        // Backend sets httpOnly cookies scoped to its own origin; rewriting
+        // the Set-Cookie domain lets them work through the Vite dev proxy.
+        cookieDomainRewrite: 'localhost',
       }
     }
   }
