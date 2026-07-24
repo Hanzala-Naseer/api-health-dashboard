@@ -14,6 +14,8 @@ const endpointRoutes=require("./modules/endpoint/endpoint.routes");
 const monitoringRoutes=require("./modules/monitoring/monitoring.routes");
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const analyticsRoutes = require('./modules/analytics/analytics.routes');
+const healthDemoRoutes = require('./modules/health-demo/health-demo.routes');
+const healthRoutes = require('./modules/health/health.routes');
 
 const ApiResponse = require('./utils/ApiResponse');
 
@@ -67,6 +69,8 @@ app.use('/api/endpoints', endpointRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analytics',analyticsRoutes);
+app.use('/api/health-demo/items', healthDemoRoutes);
+app.use('/api/health', healthRoutes);
 
 // --- 404 + centralized error handler (must be last) ---
 app.use(notFoundHandler);

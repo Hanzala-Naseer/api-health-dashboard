@@ -1,3 +1,5 @@
+
+
 import apiClient from './client';
 
 /**
@@ -14,11 +16,15 @@ import apiClient from './client';
  * GET /endpoints) still does not return `lastResponseTime` / `lastCheckedAt`
  * / `frequency` — only the single-endpoint GET does (it returns the raw
  * document). The endpoints table shows "—" for those columns accordingly.
+ *
+ * V1.5: All endpoints now support `auth` configuration for authentication
+ * types: NONE, STATIC_BEARER, API_KEY, BASIC, LOGIN_FLOW.
  */
 
-export async function createEndpoint({ name, url, method, expectedStatus, description }) {
+export async function createEndpoint({ name, url, method, expectedStatus, description, auth }) {
   const payload = { name, url, method, expectedStatus };
   if (description) payload.description = description;
+  if (auth) payload.auth = auth; // V1.5
   const { data } = await apiClient.post('/endpoints', payload);
   return data.data.endpoint;
 }
@@ -32,12 +38,14 @@ export async function getEndpoints({
   method,
   sortBy = 'createdAt',
   sortOrder = 'desc',
+  authType, // V1.5 — filter by authentication type
 } = {}) {
   const params = { page, limit, sortBy, sortOrder };
   if (search) params.search = search;
   if (status) params.status = status;
   if (monitoringEnabled !== undefined) params.monitoringEnabled = monitoringEnabled;
   if (method) params.method = method;
+  if (authType) params.authType = authType; // V1.5
 
   const { data } = await apiClient.get('/endpoints', { params });
   return data.data; // { endpoints, pagination }
@@ -51,8 +59,8 @@ export async function getEndpointById(id) {
 /**
  * PATCH /api/endpoints/:id — real. Accepts any subset of:
  * name, url, method, expectedStatus, description, frequency, timeout,
- * monitoringEnabled. `updateEndpointSchema.refine` requires at least one
- * field to be present.
+ * monitoringEnabled, auth (V1.5).
+ * `updateEndpointSchema.refine` requires at least one field to be present.
  */
 export async function updateEndpoint(id, payload) {
   const { data } = await apiClient.patch(`/endpoints/${id}`, payload);

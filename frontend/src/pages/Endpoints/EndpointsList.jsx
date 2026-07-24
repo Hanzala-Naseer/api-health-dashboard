@@ -1,3 +1,5 @@
+
+
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Eye, Radio } from 'lucide-react';
@@ -8,13 +10,13 @@ import Button from '../../components/common/Button';
 import Loader from '../../components/common/Loader';
 import EmptyState from '../../components/common/EmptyState';
 import SearchBar from '../../components/common/SearchBar';
-import StatusBadge, { MethodBadge } from '../../components/common/StatusBadge';
+import StatusBadge, { MethodBadge, AuthTypeBadge } from '../../components/common/StatusBadge';
 import Pagination from '../../components/common/Pagination';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Select } from '../../components/common/FormField';
 import { getEndpoints, deleteEndpoint } from '../../api/endpointApi';
 import { getErrorMessage } from '../../api/client';
-import { HTTP_METHODS, ENDPOINT_STATUS } from '../../utils/constants';
+import { HTTP_METHODS, ENDPOINT_STATUS, AUTH_TYPES, AUTH_TYPE_LABELS } from '../../utils/constants';
 import { formatRelativeTime, formatMs } from '../../utils/formatters';
 
 const LIMIT = 10;
@@ -25,6 +27,7 @@ export default function EndpointsList() {
   const [search, setSearch] = useState('');
   const [method, setMethod] = useState('');
   const [status, setStatus] = useState('');
+  const [authType, setAuthType] = useState(''); // V1.5
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -38,7 +41,15 @@ export default function EndpointsList() {
         search: search || undefined,
         method: method || undefined,
         status: status || undefined,
+        authType: authType || undefined, // V1.5
       });
+
+      console.log('🔍 Auth Debug:', result.endpoints.map(e => ({
+      name: e.name,
+      hasAuthentication: e.hasAuthentication,
+      authType: e.authType,
+      auth: e.auth // Check if auth object exists
+    })));
       setEndpoints(result.endpoints);
       setPagination({
         page: result.pagination?.page ?? page,
@@ -56,7 +67,7 @@ export default function EndpointsList() {
     const timeout = setTimeout(() => loadEndpoints(1), 300);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, method, status]);
+  }, [search, method, status, authType]);
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -86,9 +97,9 @@ export default function EndpointsList() {
       />
 
       <Card className="mb-4" padding="p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <SearchBar value={search} onChange={setSearch} placeholder="Search endpoints..." className="md:max-w-xs" />
-          <Select value={method} onChange={(e) => setMethod(e.target.value)} className="md:w-40">
+        <div className="flex flex-wrap gap-3 items-center">
+          <SearchBar value={search} onChange={setSearch} placeholder="Search endpoints..." className="flex-1 min-w-[150px] md:max-w-xs" />
+          <Select value={method} onChange={(e) => setMethod(e.target.value)} className="w-[130px]">
             <option value="">Method: Any</option>
             {HTTP_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -96,11 +107,20 @@ export default function EndpointsList() {
               </option>
             ))}
           </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="md:w-40">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-[140px]">
             <option value="">Status: Any</option>
             {ENDPOINT_STATUS.map((s) => (
               <option key={s} value={s}>
                 {s}
+              </option>
+            ))}
+          </Select>
+          {/* V1.5 — Authentication Type Filter */}
+          <Select value={authType} onChange={(e) => setAuthType(e.target.value)} className="w-[150px]">
+            <option value="">Auth: Any</option>
+            {AUTH_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {AUTH_TYPE_LABELS[type]}
               </option>
             ))}
           </Select>
@@ -129,6 +149,7 @@ export default function EndpointsList() {
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Method</th>
                   <th className="px-4 py-3 font-medium">URL</th>
+                  <th className="px-4 py-3 font-medium">Auth</th>
                   <th className="px-4 py-3 font-medium">Avg Response</th>
                   <th className="px-4 py-3 font-medium">Last Checked</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -154,10 +175,13 @@ export default function EndpointsList() {
                     <td className="max-w-xs truncate px-4 py-3 font-mono-code text-text-secondary">
                       {endpoint.url}
                     </td>
-                    {/* NOTE: the list endpoint (toEndpointResponse) does not
-                        return lastResponseTime/lastCheckedAt — only the
-                        single-endpoint GET does. We show "—" rather than
-                        fabricate a number. */}
+                    <td className="px-4 py-3">
+                      {endpoint.hasAuthentication ? (
+                        <AuthTypeBadge authType={endpoint.authType} />
+                      ) : (
+                        <span className="text-text-muted text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-secondary">{formatMs(endpoint.lastResponseTime)}</td>
                     <td className="px-4 py-3 text-text-secondary">{formatRelativeTime(endpoint.lastCheckedAt)}</td>
                     <td className="px-4 py-3">

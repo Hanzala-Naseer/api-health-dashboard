@@ -1,5 +1,4 @@
-
-
+// src/modules/monitoring/monitoring.repository.js
 
 const HealthCheck = require('../../models/HealthCheck.model');
 const ApiEndpoint = require('../../models/ApiEndpoint.model');
@@ -53,43 +52,34 @@ const monitoringRepository = {
       .lean();
   },
 
-
-    countHealthChecks(userId) {
-
+  countHealthChecks(userId) {
     return HealthCheck.countDocuments({
       userId,
     });
-
   },
 
-
   findEndpointHistory(endpointId, userId, { skip, limit }) {
-
-  return HealthCheck.find({
-    endpointId,
-    userId,
-  })
-    .sort({
-      checkedAt: -1,
+    return HealthCheck.find({
+      endpointId,
+      userId,
     })
-    .skip(skip)
-    .limit(limit)
-    .select(
-      'status statusCode responseTime checkedAt errorType errorMessage'
-    )
-    .lean();
+      .sort({
+        checkedAt: -1,
+      })
+      .skip(skip)
+      .limit(limit)
+      .select(
+        'status statusCode responseTime checkedAt errorType errorMessage'
+      )
+      .lean();
+  },
 
-},
-
-
-countEndpointHistory(endpointId, userId) {
-
-  return HealthCheck.countDocuments({
-    endpointId,
-    userId,
-  });
-
-},
+  countEndpointHistory(endpointId, userId) {
+    return HealthCheck.countDocuments({
+      endpointId,
+      userId,
+    });
+  },
 };
 
 module.exports = monitoringRepository;
