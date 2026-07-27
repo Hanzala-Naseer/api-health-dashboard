@@ -43,9 +43,20 @@ const checkSystemHealth = asyncHandler(async (req, res) => {
   ).send(res);
 });
 
+const checkSchedulerHealth = asyncHandler(async (req, res) => {
+  const result = healthService.checkScheduler();
+
+  return new ApiResponse(
+    200,
+    'Scheduler health check completed successfully.',
+    result
+  ).send(res);
+});
+
 module.exports = {
   getHealth,
   checkDatabaseHealth,
   checkAuthHealth,
   checkSystemHealth,
+  checkSchedulerHealth,
 };

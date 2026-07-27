@@ -68,6 +68,28 @@ const envSchema = z.object({
   GOOGLE_CALLBACK_URL: z.string().optional().default(''),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
+
+  // How often the scheduler wakes up to look for due endpoints.
+  SCHEDULER_INTERVAL_MS: z.coerce.number().min(1000).default(10000),
+  // How many endpoints are pulled from the cursor per processing batch,
+  // so a large endpoint collection never gets loaded into memory at once.
+  SCHEDULER_BATCH_SIZE: z.coerce.number().min(1).default(50),
+  // Max number of health checks running at the same time per server.
+  SCHEDULER_CONCURRENCY_LIMIT: z.coerce.number().min(1).default(20),
+  // Retries for transient network failures (timeouts, DNS, connection resets).
+  // Does not apply to permanent failures like an unexpected status code.
+  SCHEDULER_RETRY_COUNT: z.coerce.number().min(0).default(2),
+  SCHEDULER_RETRY_BASE_DELAY_MS: z.coerce.number().min(0).default(500),
+  // How long a server "owns" an endpoint before another server is allowed
+  // to pick it up. Must comfortably cover timeout + retries with backoff.
+  SCHEDULER_LEASE_DURATION_MS: z.coerce.number().min(1000).default(120000),
+
+  // Comma-separated allowlist of env var names endpoints are permitted to
+  // reference via the {{env.KEY}} template placeholder. Empty by default —
+  // this is a deliberate opt-in per deployment, not a blanket process.env
+  // passthrough, so a monitored endpoint a user configured can never be
+  // used to exfiltrate server secrets like DB URIs or JWT secrets.
+  ALLOWED_TEMPLATE_ENV_VARS: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

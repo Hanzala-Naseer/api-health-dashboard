@@ -171,6 +171,280 @@ const deleteItem = asyncHandler(async (req, res) => {
   ).send(res);
 });
 
+
+const staticBearer =asyncHandler (async(req, res) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+        return res.status(401).json({
+            success: false,
+            message: 'Authorization header missing.'
+        });
+    }
+
+    if (authHeader !== 'Bearer pulseops-secret-token') {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid bearer token.'
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: 'Bearer authentication successful.'
+    });
+});
+
+
+// src/modules/health-demo/health-demo.controller.js
+
+/**
+ * Demo API Key (Header) endpoint.
+ * 
+ * GET /health-demo/api-key-header
+ * 
+ * Expects: X-API-Key: pulseops-api-key
+ * 
+ * Returns:
+ * - 200 if API key matches
+ * - 401 if API key is missing or invalid
+ */
+const apiKeyHeader = asyncHandler(async (req, res) => {
+    const apiKey = req.headers['x-api-key'];
+
+    if (!apiKey) {
+        return res.status(401).json({
+            success: false,
+            message: 'API key missing in headers.'
+        });
+    }
+
+    // The expected API key
+    const expectedApiKey = 'pulseops-api-key';
+
+    if (apiKey !== expectedApiKey) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid API key.'
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: 'API key authentication successful.'
+    });
+});
+
+
+// src/modules/health-demo/health-demo.controller.js
+
+/**
+ * Demo API Key (Query Parameter) test endpoint.
+ * 
+ * GET /health-demo/api-key-query?api_key=YOUR_KEY
+ * 
+ * Expects: ?api_key=pulseops-api-key
+ * 
+ * Returns:
+ * - 200 if API key matches
+ * - 401 if API key is missing, empty, or invalid
+ */
+const apiKeyQuery = asyncHandler(async (req, res) => {
+    // Get the API key from query parameters
+    const apiKey = req.query.api_key;
+
+    if (!apiKey) {
+        return res.status(401).json({
+            success: false,
+            message: 'API key missing in query parameters.'
+        });
+    }
+
+    if (apiKey.trim() === '') {
+        return res.status(401).json({
+            success: false,
+            message: 'API key cannot be empty.'
+        });
+    }
+
+    // The expected API key
+    const expectedApiKey = 'pulseops-api-key';
+
+    if (apiKey !== expectedApiKey) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid API key.',
+            received: apiKey,
+            expected: expectedApiKey
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: 'API key authentication successful (query parameter).'
+    });
+});
+
+
+// src/modules/health-demo/health-demo.controller.js
+
+/**
+ * Demo Basic Authentication test endpoint.
+ * 
+ * GET /health-demo/basic
+ * 
+ * Expects: Authorization: Basic <base64(username:password)>
+ * 
+ * Valid credentials:
+ *   Username: demo
+ *   Password: password123
+ * 
+ * Returns:
+ * - 200 if credentials are valid
+ * - 401 if credentials are missing or invalid
+ */
+const basicAuth = asyncHandler(async (req, res) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+        return res.status(401).json({
+            success: false,
+            message: 'Authorization header missing.'
+        });
+    }
+
+    // Check if it's a Basic auth header
+    if (!authHeader.startsWith('Basic ')) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid authorization type. Expected Basic.'
+        });
+    }
+
+    // Decode the base64 credentials
+    const base64Credentials = authHeader.substring(6);
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+    const [username, password] = credentials.split(':');
+
+    // Expected credentials
+    const expectedUsername = 'demo';
+    const expectedPassword = 'password123';
+
+    if (username !== expectedUsername) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid username.',
+            received: username,
+            expected: expectedUsername
+        });
+    }
+
+    if (password !== expectedPassword) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid password.',
+            received: password,
+            expected: expectedPassword
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: 'Basic authentication successful.',
+        user: { username }
+    });
+});
+
+
+// src/modules/health-demo/health-demo.controller.js
+
+const crypto = require('crypto');
+
+/**
+ * Demo HMAC Authentication test endpoint.
+ * 
+ * GET /health-demo/hmac
+ * 
+ * Expects:
+ * - X-Signature: <HMAC signature>
+ * - X-Timestamp: <timestamp>
+ * - X-Nonce: <nonce> (optional)
+ * 
+ * Validates the HMAC signature using the secret key.
+ * 
+ * Returns:
+ * - 200 if HMAC signature is valid
+ * - 401 if signature is missing or invalid
+ */
+// src/modules/health-demo/health-demo.controller.js
+
+// src/modules/health-demo/health-demo.controller.js
+
+// src/modules/health-demo/health-demo.controller.js
+
+// src/modules/health-demo/health-demo.controller.js
+
+// src/modules/health-demo/health-demo.controller.js
+
+const hmacAuth = asyncHandler(async (req, res) => {
+    const signature = req.headers['x-signature'];
+    const timestamp = req.headers['x-timestamp'];
+    const nonce = req.headers['x-nonce'] || '';
+
+    if (!signature) {
+        return res.status(401).json({
+            success: false,
+            message: 'X-Signature header missing.'
+        });
+    }
+
+    if (!timestamp) {
+        return res.status(401).json({
+            success: false,
+            message: 'X-Timestamp header missing.'
+        });
+    }
+
+    const secret = 'hmac-secret-key';
+    const method = req.method.toUpperCase();
+    const path = req.originalUrl;
+    const body = ''; // For GET requests
+
+    // ✅ MATCH THE PROVIDER'S EXACT FORMAT
+    // Fields: timestamp, nonce, method, path
+    const stringToSign = `${timestamp}${nonce}${method}${path}`;
+    
+    console.log('=== HMAC SIGNATURE DEBUG ===');
+    console.log('Timestamp:', timestamp);
+    console.log('Nonce:', nonce);
+    console.log('Method:', method);
+    console.log('Path:', path);
+    console.log('String to Sign:', stringToSign);
+    console.log('Received Signature:', signature);
+    
+    const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(stringToSign)
+        .digest('hex');
+    
+    console.log('Expected Signature:', expectedSignature);
+    console.log('Match:', signature === expectedSignature);
+
+    if (signature !== expectedSignature) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid HMAC signature.',
+            received: signature,
+            expected: expectedSignature,
+            stringToSign: stringToSign
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: 'HMAC authentication successful.'
+    });
+});
 // ============================================================
 // EXPORTS
 // ============================================================
@@ -186,4 +460,9 @@ module.exports = {
   replaceItem,
   updateItem,
   deleteItem,
+  staticBearer,
+  apiKeyHeader,
+  apiKeyQuery,
+  basicAuth,
+  hmacAuth
 };

@@ -44,4 +44,11 @@ router.post(
   healthController.checkSystemHealth
 );
 
+router.post(
+  '/scheduler',
+  authenticate,
+  validate({ body: healthCheckBodySchema }),
+  healthController.checkSchedulerHealth
+);
+
 module.exports = router;

@@ -216,6 +216,70 @@ const endpointRepository = {
   },
 
   /**
+   * Same query as findMonitoringEnabledEndpoints, but as a cursor instead
+   * of an array. Used by the scheduler so it can stream endpoints in
+   * batches instead of loading the entire collection into memory.
+   */
+  getMonitoringEnabledEndpointsCursor() {
+    return ApiEndpoint.find({
+      monitoringEnabled: true,
+    }).lean().cursor();
+  },
+
+  /**
+   * Atomically claims an endpoint for this server instance.
+   *
+   * Only succeeds if the endpoint has no active lease (or the previous
+   * lease has expired), so exactly one server processes a given endpoint
+   * per cycle. Returns the updated document if the claim succeeded, or
+   * null if another server already owns it.
+   */
+  claimEndpoint(endpointId, workerId, leaseDurationMs) {
+    const now = new Date();
+
+    return ApiEndpoint.findOneAndUpdate(
+      {
+        _id: endpointId,
+        monitoringEnabled: true,
+        $or: [
+          { leaseExpiresAt: null },
+          { leaseExpiresAt: { $lte: now } },
+        ],
+      },
+      {
+        $set: {
+          leaseOwner: workerId,
+          leaseExpiresAt: new Date(now.getTime() + leaseDurationMs),
+        },
+      },
+      {
+        new: true,
+      }
+    );
+  },
+
+  /**
+   * Releases a lease once processing is done, so the endpoint doesn't sit
+   * locked until the lease naturally expires. Only clears it if this
+   * worker is still the owner, so it can't accidentally release a lease
+   * a different server has since acquired.
+   */
+  releaseEndpointLease(endpointId, workerId) {
+    return ApiEndpoint.updateOne(
+      {
+        _id: endpointId,
+        leaseOwner: workerId,
+      },
+      {
+        $set: {
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        },
+      }
+    );
+  },
+
+  /**
    * Counts all endpoints belonging to a user.
    */
   countAllEndpoints(userId) {

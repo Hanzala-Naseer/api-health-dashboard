@@ -75,6 +75,11 @@ async function checkEndpoint({ endpointId, userId }) {
     healthCheck,
   });
 
+  // Not persisted or part of the public response — Mongoose's toJSON only
+  // serializes schema paths, so this is just a way to hand the scheduler
+  // a retry count for its metrics without changing the HealthCheck schema.
+  healthCheck.retryCount = result.retryCount || 0;
+
   /**
    * Convert technical failures
    * into dashboard status.

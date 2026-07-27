@@ -6,6 +6,7 @@ const { performance } = require('node:perf_hooks');
 const BaseAuthenticationProvider = require('./base.provider');
 const { AUTH_TYPES } = require('../../../config/constants');
 const { extractTokenOrNull } = require('../helpers/tokenExtractor');
+const multiStepLogin = require('../helpers/multiStepLogin');
 
 // Simple in-memory token cache
 // In production, this should be replaced with Redis or another distributed cache
@@ -14,23 +15,28 @@ const tokenCache = new Map();
 /**
  * LOGIN_FLOW Authentication Provider.
  *
- * Automatically logs in before every monitoring check by:
- * 1. Sending a login request to the configured endpoint
- * 2. Extracting the token from the response
- * 3. Injecting it as an Authorization header
+ * Two modes, both configured under auth.loginConfig:
  *
- * Configuration:
- *   auth.type = 'LOGIN_FLOW'
+ * SINGLE-STEP (original, unchanged):
  *   auth.loginConfig.loginUrl = 'https://api.example.com/auth/login'
  *   auth.loginConfig.method = 'POST'
  *   auth.loginConfig.headers = { 'Content-Type': 'application/json' }
  *   auth.loginConfig.body = { 'email': 'user@example.com', 'password': 'secret' }
  *   auth.loginConfig.tokenPath = 'data.accessToken'
  *   auth.loginConfig.asBearer = true
- *   auth.loginConfig.cacheTtlSeconds = 0 // 0 = no caching (future enhancement)
+ *   auth.loginConfig.cacheTtlSeconds = 0 // 0 = no caching
+ *
+ * MULTI-STEP (V2 — CSRF/session flows, e.g. login page -> CSRF -> login ->
+ * session -> token):
+ *   auth.loginConfig.steps = [ ... ]        // see helpers/multiStepLogin.js
+ *   auth.loginConfig.tokenVariable = 'token' // which extracted var becomes the auth token
+ *   auth.loginConfig.forwardCookies = false  // if true, also send the session
+ *                                             // cookie jar on the monitored request
+ *   auth.loginConfig.asBearer / cacheTtlSeconds reused from above
  *
  * This produces:
  *   Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+ *   (+ Cookie: ... if forwardCookies is set)
  */
 class LoginFlowAuthenticationProvider extends BaseAuthenticationProvider {
   getAuthType() {
@@ -48,6 +54,56 @@ class LoginFlowAuthenticationProvider extends BaseAuthenticationProvider {
       throw new Error('LOGIN_FLOW authentication requires loginConfig');
     }
 
+    if (Array.isArray(config.steps) && config.steps.length > 0) {
+      return this._getMultiStepHeaders(endpoint, config, context);
+    }
+
+    return this._getSingleStepHeaders(endpoint, config, context);
+  }
+
+  /**
+   * Multi-step flow: runs the configured steps, caches the resulting
+   * session (token + cookie jar) if cacheTtlSeconds is set.
+   */
+  async _getMultiStepHeaders(endpoint, config, context) {
+    const asBearer = config.asBearer !== false;
+    const tokenVariable = config.tokenVariable || 'token';
+    const cacheKey = `${endpoint._id}:multistep`;
+
+    if (config.cacheTtlSeconds && config.cacheTtlSeconds > 0) {
+      const cached = tokenCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return this._buildHeaders(cached.token, asBearer, config.forwardCookies ? cached.cookieHeader : null);
+      }
+    }
+
+    const { vars, cookieHeader } = await multiStepLogin.executeSteps(config.steps, { timeout: 30000 });
+
+    const token = vars[tokenVariable];
+
+    if (context?.logger) {
+      context.logger.debug(
+        `[LoginFlow] Multi-step login for endpoint ${endpoint._id} completed (${config.steps.length} steps)`
+      );
+    }
+
+    if (!token) {
+      throw new Error(`Multi-step login did not produce a "${tokenVariable}" variable`);
+    }
+
+    if (config.cacheTtlSeconds && config.cacheTtlSeconds > 0) {
+      tokenCache.set(cacheKey, {
+        token,
+        cookieHeader,
+        expiresAt: Date.now() + config.cacheTtlSeconds * 1000,
+      });
+    }
+
+    return this._buildHeaders(token, asBearer, config.forwardCookies ? cookieHeader : null);
+  }
+
+  /** Original single-step flow, unchanged apart from removing debug logging. */
+  async _getSingleStepHeaders(endpoint, config, context) {
     const { loginUrl, method = 'POST', headers = {}, body, tokenPath = 'data.accessToken', asBearer = true } = config;
 
     // Validate required fields
@@ -100,17 +156,6 @@ class LoginFlowAuthenticationProvider extends BaseAuthenticationProvider {
 
       // Extract token from response
       const token = extractTokenOrNull(response.data, tokenPath);
-      console.log("");      console.log("");
-      console.log("");
-      console.log("");
-
-      console.log("Login Token: ",token);
-
-            console.log("");
-      console.log("");
-      console.log("");
-      console.log("");
-
 
       if (!token) {
         throw new Error(
@@ -142,6 +187,25 @@ class LoginFlowAuthenticationProvider extends BaseAuthenticationProvider {
         throw new Error(`Login error: ${error.message}`);
       }
     }
+  }
+
+  /**
+   * Formats the token as a header value, optionally adding a Cookie header
+   * alongside it (multi-step flows with forwardCookies enabled).
+   *
+   * @param {string} token - The raw token
+   * @param {boolean} asBearer - Whether to format as Bearer token
+   * @param {string|null} cookieHeader - Optional Cookie header to include
+   * @returns {Object} - Headers object
+   */
+  _buildHeaders(token, asBearer, cookieHeader) {
+    const headers = this._formatToken(token, asBearer);
+
+    if (cookieHeader) {
+      headers.Cookie = cookieHeader;
+    }
+
+    return headers;
   }
 
   /**
@@ -192,6 +256,10 @@ class LoginFlowAuthenticationProvider extends BaseAuthenticationProvider {
 
     if (!config) {
       return false;
+    }
+
+    if (Array.isArray(config.steps) && config.steps.length > 0) {
+      return config.steps.every((step) => Boolean(step.url));
     }
 
     return Boolean(

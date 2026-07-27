@@ -25,18 +25,6 @@ const authenticate = asyncHandler(async (req, res, next) => {
   const bearerHeader = req.headers.authorization;
   const bearerToken = bearerHeader?.startsWith('Bearer ') ? bearerHeader.slice(7) : null;
   const token = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN] || bearerToken;
-  console.log("");  console.log("");
-  console.log("");
-  console.log("");
-  console.log("");
-  console.log("");
-
-  console.log("REQUEST TOKEN:", token);
-  console.log("");
-  console.log("");
-  console.log("");
-  console.log("");
-  console.log("");
 
   
 

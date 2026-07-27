@@ -69,7 +69,7 @@ app.use('/api/endpoints', endpointRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analytics',analyticsRoutes);
-app.use('/api/health-demo/items', healthDemoRoutes);
+app.use('/api/health-demo', healthDemoRoutes);
 app.use('/api/health', healthRoutes);
 
 // --- 404 + centralized error handler (must be last) ---

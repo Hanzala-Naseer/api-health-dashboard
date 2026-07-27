@@ -5,6 +5,7 @@ const db = require('./lib/db');
 
 const {
   startScheduler,
+  stopScheduler,
 } = require('./modules/scheduler/scheduler.service');
 
 let server;
@@ -43,6 +44,10 @@ process.on('SIGINT', () => gracefulShutdown(0));
 async function gracefulShutdown(code) {
   logger.info('Shutting down gracefully...');
   try {
+    // Stop claiming new endpoints first and let any check already in
+    // flight finish, so we don't disconnect the DB out from under it.
+    await stopScheduler();
+
     if (server) {
       await new Promise((resolve) => server.close(resolve));
     }

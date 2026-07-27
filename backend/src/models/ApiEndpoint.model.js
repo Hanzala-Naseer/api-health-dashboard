@@ -99,7 +99,7 @@ const mongoose = require('mongoose');
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const ENDPOINT_STATUS = ['UP', 'DOWN', 'DEGRADED', 'UNKNOWN'];
-const BODY_TYPES = ['NONE', 'JSON', 'TEXT', 'FORM_URLENCODED'];
+const BODY_TYPES = ['NONE', 'JSON', 'TEXT', 'FORM_URLENCODED', 'XML', 'MULTIPART'];
 
 // Production V1 monitoring metadata (Feature 1). This never blocks or
 // changes request execution — every method (including POST/PUT/PATCH/DELETE)
@@ -108,9 +108,22 @@ const BODY_TYPES = ['NONE', 'JSON', 'TEXT', 'FORM_URLENCODED'];
 const MONITORING_TYPES = ['READ_ONLY', 'TRANSACTION'];
 
 // ============================================================
-// V1.5 — Authentication Types (mirrors src/config/constants.js)
+// V1.5 / V2 — Authentication Types (mirrors src/config/constants.js)
 // ============================================================
-const AUTH_TYPES = ['NONE', 'STATIC_BEARER', 'API_KEY', 'BASIC', 'LOGIN_FLOW'];
+const AUTH_TYPES = [
+  'NONE',
+  'STATIC_BEARER',
+  'API_KEY',
+  'BASIC',
+  'LOGIN_FLOW',
+  'API_KEY_QUERY',
+  'OAUTH2_CLIENT_CREDENTIALS',
+  'OAUTH2_REFRESH_TOKEN',
+  'HMAC',
+];
+
+// HMAC signature output encoding
+const HMAC_FORMATS = ['hex', 'base64'];
 
 // HTTP methods supported for login flow authentication
 const LOGIN_HTTP_METHODS = ['POST', 'GET', 'PUT', 'PATCH', 'DELETE'];
@@ -129,6 +142,13 @@ const apiEndpointSchema = new mongoose.Schema(
     url: { type: String, required: true, trim: true },
     method: { type: String, enum: HTTP_METHODS, default: 'GET' },
     expectedStatus: { type: Number, default: 200, min: 100, max: 599 },
+
+    // Optional additional assertions beyond the status code match above —
+    // header/body/JSONPath/size/timing checks. Only evaluated once the
+    // status code already matches expectedStatus. See
+    // modules/monitoring/responseValidator.service.js for the rule shapes.
+    validationRules: { type: mongoose.Schema.Types.Mixed, default: [] },
+
     description: { type: String, trim: true, maxlength: 1000, default: null },
 
     // Custom request headers sent with every check, e.g. { "Authorization": "Bearer xyz",
@@ -136,12 +156,20 @@ const apiEndpointSchema = new mongoose.Schema(
     // full-document reads return the same shape without extra conversion.
     headers: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+    // Custom query string params sent with every check, e.g. { "version": "2" }.
+    // Values may contain {{placeholder}} templates (timestamp, uuid, etc. — see
+    // modules/authentication/helpers/templateResolver.js), resolved fresh per request.
+    queryParams: { type: mongoose.Schema.Types.Mixed, default: {} },
+
     // Request body sent for methods like POST/PUT/PATCH (and DELETE, for APIs that
     // require one). `bodyType` determines how `body` is serialized/interpreted:
     //   NONE             -> no body sent regardless of `body`
     //   JSON             -> sent as application/json (object or JSON string)
     //   TEXT             -> sent as raw text, Content-Type left as provided in `headers`
     //   FORM_URLENCODED  -> object/JSON string sent as application/x-www-form-urlencoded
+    //   XML              -> raw XML string sent as-is, Content-Type defaults to application/xml
+    //   MULTIPART        -> object/JSON string of text fields sent as multipart/form-data
+    //                       (file uploads are not supported)
     bodyType: { type: String, enum: BODY_TYPES, default: 'NONE' },
     body: { type: mongoose.Schema.Types.Mixed, default: null },
 
@@ -168,6 +196,16 @@ const apiEndpointSchema = new mongoose.Schema(
     totalChecks: { type: Number, default: 0 },
     successfulChecks: { type: Number, default: 0 },
     failedChecks: { type: Number, default: 0 },
+
+    // ============================================================
+    // Scheduler lease (multi-server safety)
+    // ============================================================
+    // Identifies which server instance currently "owns" this endpoint for
+    // the in-progress check. leaseExpiresAt is set a few minutes out so a
+    // crashed server never permanently blocks the endpoint from being
+    // picked up again — the lease just expires and another server claims it.
+    leaseOwner: { type: String, default: null },
+    leaseExpiresAt: { type: Date, default: null },
 
     // ============================================================
     // V1.5 — Authentication Configuration
@@ -275,6 +313,118 @@ const apiEndpointSchema = new mongoose.Schema(
           default: 0,
           min: 0,
         },
+
+        // --- Advanced multi-step login (V2) ---
+        // When present (non-empty), the multi-step engine runs instead of
+        // the single loginUrl/body flow above. See
+        // modules/authentication/helpers/multiStepLogin.js for the step shape.
+        steps: {
+          type: mongoose.Schema.Types.Mixed,
+          default: null,
+        },
+        // Which extracted variable (from any step's `extract` rules)
+        // becomes the Authorization token. Only used in multi-step mode.
+        tokenVariable: {
+          type: String,
+          default: 'token',
+          trim: true,
+        },
+        // If true, the accumulated session cookie jar is also sent as a
+        // Cookie header on the actual monitored request (not just between
+        // login steps) — needed for session-cookie-based APIs.
+        forwardCookies: {
+          type: Boolean,
+          default: false,
+        },
+      },
+
+      // --- API_KEY_QUERY ---
+      // Same idea as API_KEY, but sent as a query string param instead of a header
+      // (e.g. ?api_key=..., ?apikey=..., ?token=...). Reuses apiKeyValue above.
+      apiKeyQueryParam: {
+        type: String,
+        default: null,
+        trim: true,
+        maxlength: 100,
+      },
+
+      // --- HMAC ---
+      hmacSecret: {
+        type: String,
+        default: null,
+        trim: true,
+        maxlength: 4000,
+      },
+      hmacSignatureHeader: {
+        type: String,
+        default: 'X-Signature',
+        trim: true,
+        maxlength: 100,
+      },
+      hmacTimestampHeader: {
+        type: String,
+        default: 'X-Timestamp',
+        trim: true,
+        maxlength: 100,
+      },
+      hmacNonceHeader: {
+        type: String,
+        default: null,
+        trim: true,
+        maxlength: 100,
+      },
+      hmacFormat: {
+        type: String,
+        enum: HMAC_FORMATS,
+        default: 'hex',
+      },
+      // Order controls the order the fields are concatenated into the
+      // string-to-sign, e.g. ['timestamp', 'method', 'path', 'body'].
+      hmacSignedFields: {
+        type: [String],
+        default: ['timestamp', 'method', 'path', 'body'],
+      },
+
+      // --- OAUTH2_CLIENT_CREDENTIALS / OAUTH2_REFRESH_TOKEN ---
+      // Shared by both OAuth2 grant types — clientId/clientSecret are used
+      // for CLIENT_CREDENTIALS (and optionally alongside refreshToken for
+      // providers that require client auth on refresh too).
+      oauth2Config: {
+        tokenUrl: {
+          type: String,
+          default: null,
+          trim: true,
+        },
+        clientId: {
+          type: String,
+          default: null,
+          trim: true,
+          maxlength: 500,
+        },
+        clientSecret: {
+          type: String,
+          default: null,
+          trim: true,
+          maxlength: 4000,
+        },
+        refreshToken: {
+          type: String,
+          default: null,
+          trim: true,
+          maxlength: 4000,
+        },
+        scope: {
+          type: String,
+          default: null,
+          trim: true,
+          maxlength: 500,
+        },
+        audience: {
+          type: String,
+          default: null,
+          trim: true,
+          maxlength: 500,
+        },
       },
 
       // Authentication status (computed, not stored directly — see virtual below)
@@ -317,8 +467,26 @@ apiEndpointSchema.virtual('hasAuthentication').get(function () {
     case 'BASIC':
       return Boolean(auth.basicUsername && auth.basicPassword);
 
-    case 'LOGIN_FLOW':
-      return Boolean(auth.loginConfig && auth.loginConfig.loginUrl && auth.loginConfig.body);
+    case 'LOGIN_FLOW': {
+      const loginConfig = auth.loginConfig;
+      if (!loginConfig) return false;
+      if (Array.isArray(loginConfig.steps) && loginConfig.steps.length > 0) {
+        return loginConfig.steps.every((step) => Boolean(step.url));
+      }
+      return Boolean(loginConfig.loginUrl && loginConfig.body);
+    }
+
+    case 'API_KEY_QUERY':
+      return Boolean(auth.apiKeyQueryParam && auth.apiKeyValue);
+
+    case 'HMAC':
+      return Boolean(auth.hmacSecret);
+
+    case 'OAUTH2_CLIENT_CREDENTIALS':
+      return Boolean(auth.oauth2Config && auth.oauth2Config.tokenUrl && auth.oauth2Config.clientId && auth.oauth2Config.clientSecret);
+
+    case 'OAUTH2_REFRESH_TOKEN':
+      return Boolean(auth.oauth2Config && auth.oauth2Config.tokenUrl && auth.oauth2Config.refreshToken);
 
     case 'NONE':
     default:
@@ -339,84 +507,86 @@ apiEndpointSchema.index({ monitoringEnabled: 1 });
 // Index for filtering by authentication type (e.g., "show me all endpoints with LOGIN_FLOW auth")
 apiEndpointSchema.index({ 'auth.type': 1 });
 
+// Supports the scheduler's claim query (findOneAndUpdate on monitoringEnabled
+// endpoints with an expired/absent lease).
+apiEndpointSchema.index({ monitoringEnabled: 1, leaseExpiresAt: 1 });
+
 // ============================================================
 // V1.5 — Middleware: Clean authentication fields before validation
 // ============================================================
 
+// Every field any auth type stores. Used by the pre-save hook below to
+// clear out whatever the current auth.type doesn't use, so switching auth
+// types never leaves a stale secret (old password, old client secret,
+// etc.) sitting in the document.
+const ALL_AUTH_FIELDS = [
+  'staticToken',
+  'apiKeyHeader',
+  'apiKeyValue',
+  'basicUsername',
+  'basicPassword',
+  'loginConfig',
+  'apiKeyQueryParam',
+  'hmacSecret',
+  'hmacSignatureHeader',
+  'hmacTimestampHeader',
+  'hmacNonceHeader',
+  'hmacFormat',
+  'hmacSignedFields',
+  'oauth2Config',
+];
+
+// Which of the fields above each auth type actually uses — everything
+// else gets cleared. API_KEY and API_KEY_QUERY both use apiKeyValue since
+// they're the same underlying idea (a key), just delivered differently.
+const AUTH_FIELDS_TO_KEEP = {
+  NONE: [],
+  STATIC_BEARER: ['staticToken'],
+  API_KEY: ['apiKeyHeader', 'apiKeyValue'],
+  BASIC: ['basicUsername', 'basicPassword'],
+  LOGIN_FLOW: ['loginConfig'],
+  API_KEY_QUERY: ['apiKeyQueryParam', 'apiKeyValue'],
+  HMAC: ['hmacSecret', 'hmacSignatureHeader', 'hmacTimestampHeader', 'hmacNonceHeader', 'hmacFormat', 'hmacSignedFields'],
+  OAUTH2_CLIENT_CREDENTIALS: ['oauth2Config'],
+  OAUTH2_REFRESH_TOKEN: ['oauth2Config'],
+};
+
 /**
  * Pre-save middleware that ensures authentication fields are consistent.
  *
- * - If auth.type is 'NONE', clear all other auth fields
+ * - Clears every auth field the current auth.type doesn't use
  * - If auth.type is 'LOGIN_FLOW', ensure loginConfig has defaults
  */
 apiEndpointSchema.pre('save', function (next) {
-  const auth = this.auth || {};
-
   // If no auth object exists, create one with default type
   if (!this.auth) {
     this.auth = { type: 'NONE' };
     return next();
   }
 
-  // Clean up fields based on type
-  const type = auth.type || 'NONE';
+  const type = this.auth.type || 'NONE';
+  const fieldsToKeep = new Set(AUTH_FIELDS_TO_KEEP[type] || []);
 
-  switch (type) {
-    case 'NONE':
-      // Clear all authentication fields
-      this.auth.staticToken = undefined;
-      this.auth.apiKeyHeader = undefined;
-      this.auth.apiKeyValue = undefined;
-      this.auth.basicUsername = undefined;
-      this.auth.basicPassword = undefined;
-      this.auth.loginConfig = undefined;
-      break;
+  for (const field of ALL_AUTH_FIELDS) {
+    if (!fieldsToKeep.has(field)) {
+      this.auth[field] = undefined;
+    }
+  }
 
-    case 'STATIC_BEARER':
-      this.auth.apiKeyHeader = undefined;
-      this.auth.apiKeyValue = undefined;
-      this.auth.basicUsername = undefined;
-      this.auth.basicPassword = undefined;
-      this.auth.loginConfig = undefined;
-      break;
-
-    case 'API_KEY':
-      this.auth.staticToken = undefined;
-      this.auth.basicUsername = undefined;
-      this.auth.basicPassword = undefined;
-      this.auth.loginConfig = undefined;
-      break;
-
-    case 'BASIC':
-      this.auth.staticToken = undefined;
-      this.auth.apiKeyHeader = undefined;
-      this.auth.apiKeyValue = undefined;
-      this.auth.loginConfig = undefined;
-      break;
-
-    case 'LOGIN_FLOW':
-      this.auth.staticToken = undefined;
-      this.auth.apiKeyHeader = undefined;
-      this.auth.apiKeyValue = undefined;
-      this.auth.basicUsername = undefined;
-      this.auth.basicPassword = undefined;
-
-      // Ensure loginConfig has defaults
-      if (this.auth.loginConfig) {
-        if (!this.auth.loginConfig.method) {
-          this.auth.loginConfig.method = 'POST';
-        }
-        if (!this.auth.loginConfig.headers) {
-          this.auth.loginConfig.headers = { 'Content-Type': 'application/json' };
-        }
-        if (!this.auth.loginConfig.tokenPath) {
-          this.auth.loginConfig.tokenPath = 'data.accessToken';
-        }
-        if (this.auth.loginConfig.asBearer === undefined) {
-          this.auth.loginConfig.asBearer = true;
-        }
-      }
-      break;
+  // Ensure loginConfig has defaults
+  if (type === 'LOGIN_FLOW' && this.auth.loginConfig) {
+    if (!this.auth.loginConfig.method) {
+      this.auth.loginConfig.method = 'POST';
+    }
+    if (!this.auth.loginConfig.headers) {
+      this.auth.loginConfig.headers = { 'Content-Type': 'application/json' };
+    }
+    if (!this.auth.loginConfig.tokenPath) {
+      this.auth.loginConfig.tokenPath = 'data.accessToken';
+    }
+    if (this.auth.loginConfig.asBearer === undefined) {
+      this.auth.loginConfig.asBearer = true;
+    }
   }
 
   next();

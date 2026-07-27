@@ -52,6 +52,23 @@ router.post(
   healthDemoController.login
 );
 
+
+//bearer
+router.get('/bearer', healthDemoController.staticBearer);
+
+
+// API Key (Header) test endpoint
+router.get('/api-key-header', healthDemoController.apiKeyHeader);
+
+// API_KEY test endpoint (Query Parameter)
+router.get('/api-key-query', healthDemoController.apiKeyQuery);
+
+// BASIC Authentication test endpoint
+router.get('/basic', healthDemoController.basicAuth);
+
+// HMAC Authentication test endpoint
+router.get('/hmac', healthDemoController.hmacAuth);
+
 // ============================================================
 // PROTECTED CRUD ROUTES
 // ============================================================
@@ -137,5 +154,17 @@ router.delete(
   }),
   healthDemoController.deleteItem
 );
+
+
+//timeout
+router.post('/delay', (req, res) => {
+    const delay = parseInt(req.query.ms) || 1000; 
+    setTimeout(() => {
+        res.json({ status: "success", delayRequested: `${delay}ms` });
+    }, delay);
+});
+
+
+
 
 module.exports = router;

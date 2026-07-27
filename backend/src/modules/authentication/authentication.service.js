@@ -9,6 +9,10 @@ const StaticBearerProvider = require('./providers/staticBearer.provider');
 const ApiKeyProvider = require('./providers/apiKey.provider');
 const BasicProvider = require('./providers/basic.provider');
 const LoginFlowProvider = require('./providers/loginFlow.provider');
+const ApiKeyQueryProvider = require('./providers/apiKeyQuery.provider');
+const HmacProvider = require('./providers/hmac.provider');
+const OAuth2ClientCredentialsProvider = require('./providers/oauth2ClientCredentials.provider');
+const OAuth2RefreshTokenProvider = require('./providers/oauth2RefreshToken.provider');
 
 /**
  * Authentication Service — V1.5
@@ -39,6 +43,10 @@ class AuthenticationService {
       [AUTH_TYPES.API_KEY, ApiKeyProvider],
       [AUTH_TYPES.BASIC, BasicProvider],
       [AUTH_TYPES.LOGIN_FLOW, LoginFlowProvider],
+      [AUTH_TYPES.API_KEY_QUERY, ApiKeyQueryProvider],
+      [AUTH_TYPES.HMAC, HmacProvider],
+      [AUTH_TYPES.OAUTH2_CLIENT_CREDENTIALS, OAuth2ClientCredentialsProvider],
+      [AUTH_TYPES.OAUTH2_REFRESH_TOKEN, OAuth2RefreshTokenProvider],
     ]);
 
     // Default provider for unknown types
@@ -107,6 +115,39 @@ class AuthenticationService {
   }
 
   /**
+   * Gets authentication query parameters for the given endpoint.
+   *
+   * Mirrors getAuthenticationHeaders, but for auth types that authenticate
+   * via the query string (e.g. API_KEY_QUERY) instead of headers. Returns
+   * {} for auth types that don't use query params — no special-casing
+   * needed by callers.
+   *
+   * @param {Object} endpoint - The endpoint document (with auth field)
+   * @param {Object} context - Optional execution context (logger, etc.)
+   * @returns {Promise<Object>} - Query params to merge into the request
+   * @throws {Error} - If authentication fails
+   */
+  async getAuthenticationQueryParams(endpoint, context = { logger }) {
+    const authType = endpoint?.auth?.type || AUTH_TYPES.NONE;
+
+    if (authType === AUTH_TYPES.NONE || !endpoint?.auth) {
+      return {};
+    }
+
+    const provider = this.getProvider(endpoint);
+
+    try {
+      const params = await provider.getAuthenticationQueryParams(endpoint, context);
+      return params || {};
+    } catch (error) {
+      logger.error(
+        `Authentication query param resolution failed for endpoint ${endpoint._id || 'unknown'} (${authType}): ${error.message}`
+      );
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Checks if the endpoint has valid authentication configuration.
    *
    * @param {Object} endpoint - The endpoint document
@@ -148,19 +189,30 @@ class AuthenticationService {
   }
 
   /**
-   * Clears the token cache for a specific endpoint (LOGIN_FLOW only).
+   * Clears the token cache for a specific endpoint, across every provider
+   * that caches tokens (LOGIN_FLOW, both OAuth2 grant types). Harmless to
+   * call for endpoints using a non-caching auth type — those providers
+   * simply don't implement clearCache.
    *
    * @param {string} endpointId - The endpoint ID
    */
   clearCache(endpointId) {
-    LoginFlowProvider.clearCache(endpointId);
+    for (const provider of this.providers.values()) {
+      if (typeof provider.clearCache === 'function') {
+        provider.clearCache(endpointId);
+      }
+    }
   }
 
   /**
-   * Clears all token cache entries.
+   * Clears all token cache entries, across every caching provider.
    */
   clearAllCache() {
-    LoginFlowProvider.clearAllCache();
+    for (const provider of this.providers.values()) {
+      if (typeof provider.clearAllCache === 'function') {
+        provider.clearAllCache();
+      }
+    }
   }
 }
 

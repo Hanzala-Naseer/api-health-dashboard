@@ -25,4 +25,8 @@ module.exports.Providers = {
   ApiKeyProvider: require('./providers/apiKey.provider'),
   BasicProvider: require('./providers/basic.provider'),
   LoginFlowProvider: require('./providers/loginFlow.provider'),
+  ApiKeyQueryProvider: require('./providers/apiKeyQuery.provider'),
+  HmacProvider: require('./providers/hmac.provider'),
+  OAuth2ClientCredentialsProvider: require('./providers/oauth2ClientCredentials.provider'),
+  OAuth2RefreshTokenProvider: require('./providers/oauth2RefreshToken.provider'),
 };

@@ -50,6 +50,21 @@ class BaseAuthenticationProvider {
   }
 
   /**
+   * Gets authentication query parameters for the given endpoint.
+   *
+   * Optional — most auth types are header-based, so the default
+   * implementation returns nothing. Only providers that authenticate via
+   * the query string (e.g. API Key as a query param) override this.
+   *
+   * @param {Object} endpoint - The endpoint document (with auth field)
+   * @param {Object} context - Execution context (logger, etc.)
+   * @returns {Promise<Object>} - Query params to merge (e.g., { api_key: '...' })
+   */
+  async getAuthenticationQueryParams(endpoint, context) {
+    return {};
+  }
+
+  /**
    * Validates that the endpoint has the required configuration for this provider.
    * @param {Object} endpoint - The endpoint document
    * @returns {boolean}

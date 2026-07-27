@@ -16,11 +16,6 @@ const authController = require('./auth.controller');
 
 const router = Router();
 
-/**
- * FEATURE 1: Registration + Email OTP Verification
- * (Login, refresh, logout, password reset, OAuth, etc. are added in
- * subsequent features on this same router — see README "Roadmap".)
- */
 
 router.post('/register', authLimiter, validate({ body: registerSchema }), authController.register);
 
@@ -28,20 +23,10 @@ router.post('/verify-otp', otpRequestLimiter, validate({ body: verifyOtpSchema }
 
 router.post('/resend-otp', otpRequestLimiter, validate({ body: resendOtpSchema }), authController.resendOtp);
 
-/**
- * FEATURE 2: Login + Session Issuance
- * (Refresh token rotation / reuse detection and logout are next.)
- */
 router.post('/login', authLimiter, validate({ body: loginSchema }), authController.login);
 
 router.get('/me', authenticate, authController.me);
 
-/**
- * FEATURE 3: Refresh Token Rotation + Reuse Detection
- * Not behind `authenticate` — the whole point is to work when the access
- * token has already expired. Rate-limited like other auth endpoints since
- * it's still a credential-bearing operation.
- */
 router.post(
   '/refresh-token',
   authLimiter,
@@ -49,18 +34,11 @@ router.post(
   authController.refreshToken
 );
 
-/**
- * FEATURE 4: Logout (current device) / Logout All Devices
- * Both require `authenticate` — logout needs to know WHO and WHICH
- * session, not just "clear whatever cookie is present".
- */
 router.post('/logout', authenticate, authController.logout);
 
 router.post('/logout-all', authenticate, authController.logoutAllDevices);
 
-/**
- * FEATURE 5: Forgot Password / Reset Password / Change Password
- */
+
 router.post(
   '/forgot-password',
   authLimiter,

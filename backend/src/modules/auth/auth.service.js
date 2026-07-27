@@ -114,16 +114,22 @@ async function issueAndSendOtp(user, purpose, requestContext, { activityEvent } 
   await authRepository.revokePendingOtps(user.id, purpose);
 
   const rawOtp = generateNumericOtp();
-  console.log("");
-  console.log("")
-  console.log("")
-  console.log("")
-  console.log(rawOtp)
-  console.log("")
-  console.log("")
-  console.log("")
-  console.log("")
 
+  console.log("");
+   console.log("");
+  console.log("");
+  console.log("");
+  console.log("");
+  console.log("");
+    console.log(rawOtp);
+      console.log("");
+  console.log("");
+  console.log("");
+  console.log("");
+  console.log("");
+
+
+ 
   const otpHash = sha256(rawOtp);
   const expiresAt = new Date(Date.now() + env.OTP_EXPIRY_MINUTES * 60 * 1000);
 

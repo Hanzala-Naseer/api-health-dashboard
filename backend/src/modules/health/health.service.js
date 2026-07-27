@@ -1,6 +1,7 @@
 const os = require('node:os');
 const { performance } = require('node:perf_hooks');
 const { mongoose } = require('../../lib/db');
+const schedulerService = require('../scheduler/scheduler.service');
 
 /**
  * FEATURE 4: Health Endpoints
@@ -107,9 +108,19 @@ function checkSystem() {
   };
 }
 
+/**
+ * Reports scheduler running status, last run stats, and current
+ * configuration — lets ops confirm the scheduler is alive on this
+ * instance and see basic run metrics without a separate monitoring stack.
+ */
+function checkScheduler() {
+  return schedulerService.getStatus();
+}
+
 module.exports = {
   getOverallHealth,
   checkDatabase,
   checkAuth,
   checkSystem,
+  checkScheduler,
 };
