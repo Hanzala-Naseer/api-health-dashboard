@@ -228,8 +228,99 @@ import {
   getUptimeTrend,
   getRecentHealthChecks 
 } from '../../api/dashboardApi';
+import { getSchedulerHealth } from '../../api/healthApi';
 import { getErrorMessage } from '../../api/client';
 import { formatRelativeTime } from '../../utils/formatters';
+
+/**
+ * SchedulerStatusCard — small, self-polling widget showing whether the
+ * monitoring scheduler is alive on this server instance, its last run's
+ * metrics, and current configuration. Loads independently of the rest of
+ * the dashboard (it has its own data source, POST /api/health/scheduler)
+ * and re-polls every 15s so it stays current without a full page refresh.
+ */
+function SchedulerStatusCard() {
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const result = await getSchedulerHealth();
+        if (!cancelled) {
+          setStatus(result);
+          setError(false);
+        }
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    }
+
+    load();
+    const interval = setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader
+        title="Monitoring Scheduler"
+        subtitle={status ? `Worker: ${status.workerId}` : undefined}
+        action={
+          status && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${
+                status.running
+                  ? 'border-success/20 bg-success/10 text-success'
+                  : 'border-danger/20 bg-danger/10 text-danger'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${status.running ? 'bg-success' : 'bg-danger'}`} />
+              {status.running ? 'Running' : 'Stopped'}
+            </span>
+          )
+        }
+      />
+
+      {error && <p className="text-sm text-text-secondary">Could not reach the scheduler status endpoint.</p>}
+
+      {!error && !status && <p className="text-sm text-text-secondary">Loading…</p>}
+
+      {status && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs text-text-secondary">Last Run</p>
+            <p className="text-sm font-medium text-text-primary">
+              {status.lastRun?.startedAt ? formatRelativeTime(status.lastRun.startedAt) : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Processed / Skipped / Failed</p>
+            <p className="text-sm font-medium text-text-primary">
+              {status.lastRun?.processed ?? 0} / {status.lastRun?.skipped ?? 0} / {status.lastRun?.failed ?? 0}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Active Workers</p>
+            <p className="text-sm font-medium text-text-primary">{status.activeWorkers ?? 0}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Config</p>
+            <p className="text-sm font-medium text-text-primary">
+              every {Math.round((status.config?.intervalMs ?? 0) / 1000)}s · batch {status.config?.batchSize} · concurrency{' '}
+              {status.config?.concurrencyLimit}
+            </p>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function DashboardOverview() {
   const [summary, setSummary] = useState(null);
@@ -241,35 +332,17 @@ export default function DashboardOverview() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function loadData() {
-    console.log('🔄 === LOADING DASHBOARD DATA ===');
-    
     try {
-      console.log('📡 Fetching: Dashboard Summary...');
       const summaryResult = await getDashboardSummary();
-      console.log('✅ Summary:', summaryResult);
-
-      console.log('📡 Fetching: Endpoints...');
       const endpointsResult = await getEndpoints({ page: 1, limit: 100 });
-      console.log('✅ Endpoints count:', endpointsResult.endpoints?.length || 0);
-
-      console.log('📡 Fetching: Response Time Trend (7d)...');
       const trendResult = await getResponseTimeTrend({ period: '7d' });
-      console.log('✅ Trend raw result:', trendResult);
-      console.log('✅ Trend length:', trendResult?.length || 0);
-
-      console.log('📡 Fetching: Uptime Trend (7d)...');
       const uptimeResult = await getUptimeTrend({ period: '7d' });
-      console.log('✅ Uptime raw result:', uptimeResult);
-      console.log('✅ Uptime length:', uptimeResult?.length || 0);
-
-      console.log('📡 Fetching: Recent Health Checks...');
       const recentResult = await getRecentHealthChecks({ limit: 5 });
-      console.log('✅ Recent checks count:', recentResult.checks?.length || 0);
 
       setSummary(summaryResult);
       setEndpoints(endpointsResult.endpoints || []);
       
-      // ✅ Transform Response Time Data
+      // Transform Response Time Data
       let transformedTrend = [];
       if (trendResult && Array.isArray(trendResult) && trendResult.length > 0) {
         transformedTrend = trendResult.map((point) => {
@@ -287,7 +360,7 @@ export default function DashboardOverview() {
       }
       setTrend(transformedTrend);
 
-      // ✅ Transform Uptime Data
+      // Transform Uptime Data
       let transformedUptime = [];
       if (uptimeResult && Array.isArray(uptimeResult) && uptimeResult.length > 0) {
         transformedUptime = uptimeResult.map((point) => {
@@ -307,7 +380,6 @@ export default function DashboardOverview() {
       setRecentChecks(recentResult.checks || []);
       
     } catch (error) {
-      console.error('❌ Error loading dashboard data:', error);
       toast.error(getErrorMessage(error, 'Could not load dashboard data.'));
     } finally {
       setIsLoading(false);
@@ -316,6 +388,7 @@ export default function DashboardOverview() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, []);
 
@@ -371,6 +444,11 @@ export default function DashboardOverview() {
           <p className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Avg Uptime</p>
           <p className="mt-2 text-2xl font-bold text-text-primary">{summary.averageUptime || 0}%</p>
         </Card>
+      </div>
+
+      {/* Scheduler status — polls POST /api/health/scheduler every 15s */}
+      <div className="mb-6">
+        <SchedulerStatusCard />
       </div>
 
       {/* Row 1: Response Time + Status Distribution */}

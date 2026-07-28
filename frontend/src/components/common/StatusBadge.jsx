@@ -124,6 +124,15 @@ const ENDPOINT_STATUS_STYLES = {
     border: 'border-danger/20',
     label: 'Token Error',
   },
+  // V2 — response validation rule failed (status code was fine, but a
+  // configured header/body/JSONPath/size/timing assertion wasn't)
+  VALIDATION_FAILED: {
+    dot: 'bg-danger',
+    text: 'text-danger',
+    bg: 'bg-danger/10',
+    border: 'border-danger/20',
+    label: 'Validation Failed',
+  },
   UNKNOWN: {
     dot: 'bg-text-muted',
     text: 'text-text-secondary',
@@ -144,25 +153,42 @@ const SEVERITY_STYLES = {
 // V1.5 — Authentication Type Configuration (FIXED)
 // ============================================================
 const AUTH_TYPE_STYLES = {
-  NONE: { 
-    label: 'None', 
-    className: 'bg-gray-100 text-gray-600 border border-gray-200' 
+  NONE: {
+    label: 'None',
+    className: 'bg-gray-100 text-gray-600 border border-gray-200'
   },
-  STATIC_BEARER: { 
-    label: 'Bearer Token', 
-    className: 'bg-blue-100 text-blue-700 border border-blue-200' 
+  STATIC_BEARER: {
+    label: 'Bearer Token',
+    className: 'bg-blue-100 text-blue-700 border border-blue-200'
   },
-  API_KEY: { 
-    label: 'API Key', 
-    className: 'bg-purple-100 text-purple-700 border border-purple-200' 
+  API_KEY: {
+    label: 'API Key',
+    className: 'bg-purple-100 text-purple-700 border border-purple-200'
   },
-  BASIC: { 
-    label: 'Basic Auth', 
-    className: 'bg-yellow-100 text-yellow-700 border border-yellow-200' 
+  BASIC: {
+    label: 'Basic Auth',
+    className: 'bg-yellow-100 text-yellow-700 border border-yellow-200'
   },
-  LOGIN_FLOW: { 
-    label: 'Login Flow', 
-    className: 'bg-green-100 text-green-700 border border-green-200' 
+  LOGIN_FLOW: {
+    label: 'Login Flow',
+    className: 'bg-green-100 text-green-700 border border-green-200'
+  },
+  // V2 — new auth types
+  API_KEY_QUERY: {
+    label: 'API Key (Query)',
+    className: 'bg-purple-100 text-purple-700 border border-purple-200'
+  },
+  HMAC: {
+    label: 'HMAC Signed',
+    className: 'bg-teal-100 text-teal-700 border border-teal-200'
+  },
+  OAUTH2_CLIENT_CREDENTIALS: {
+    label: 'OAuth2 (Client Creds)',
+    className: 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+  },
+  OAUTH2_REFRESH_TOKEN: {
+    label: 'OAuth2 (Refresh Token)',
+    className: 'bg-indigo-100 text-indigo-700 border border-indigo-200'
   },
 };
 
