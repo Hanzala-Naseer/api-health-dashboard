@@ -69,6 +69,13 @@ router.get('/basic', healthDemoController.basicAuth);
 // HMAC Authentication test endpoint
 router.get('/hmac', healthDemoController.hmacAuth);
 
+
+// OAuth2 Client Credentials - Token Endpoint
+router.post('/oauth/token', healthDemoController.oauthToken);
+
+// OAuth2 Protected Resource
+router.get('/oauth/resource', healthDemoController.oauthResource);
+
 // ============================================================
 // PROTECTED CRUD ROUTES
 // ============================================================

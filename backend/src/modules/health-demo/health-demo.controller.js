@@ -445,6 +445,46 @@ const hmacAuth = asyncHandler(async (req, res) => {
         message: 'HMAC authentication successful.'
     });
 });
+
+
+
+const oauthToken = asyncHandler((req, res) => {
+
+    console.log(req.body);
+
+  const { grant_type, client_id, client_secret } = req.body;
+
+  if (
+    grant_type !== 'client_credentials' ||
+    client_id !== 'demo-client' ||
+    client_secret !== 'demo-secret'
+  ) {
+    return res.status(401).json({
+      error: 'invalid_client'
+    });
+  }
+
+  return res.status(200).json({
+    access_token: 'demo-oauth-token',
+    token_type: 'Bearer',
+    expires_in: 3600
+  });
+});
+
+const oauthResource = asyncHandler((req, res) => {
+  const auth = req.headers.authorization;
+
+  if (auth !== 'Bearer demo-oauth-token') {
+    return res.status(401).json({
+      error: 'invalid_token'
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'OAuth2 resource accessed successfully.'
+  });
+});
 // ============================================================
 // EXPORTS
 // ============================================================
@@ -464,5 +504,7 @@ module.exports = {
   apiKeyHeader,
   apiKeyQuery,
   basicAuth,
-  hmacAuth
+  hmacAuth,
+  oauthToken,
+  oauthResource
 };
